@@ -5,7 +5,8 @@
 	"author": "pkokki",
 	"private": true,
 	"scripts": {
-		"start": "nodemon ./src/app.js"
+		"start": "nodemon ./src/app.js",
+		"test": "jasmine-node ./src/routes_spec.js --autotest"
 	},
 	"repository": {
 		"type": "git",
@@ -26,6 +27,8 @@
 	"devDependencies": {
 		"karma": "~0.12.32",
 		"karma-jasmine": "~0.3.5",
-		"karma-chrome-launcher": "~0.1.12"
+		"karma-chrome-launcher": "~0.1.12",
+		"frisby": "~0.8.5",
+		"jasmine-node": "~1.14.5"
 	}
 }
