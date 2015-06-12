@@ -22,7 +22,8 @@
 		"mongoose": "~4.0.2",
 		"morgan": "~1.5.2",
 		"body-parser": "~1.12.3",
-		"method-override": "~2.3.2"
+		"method-override": "~2.3.2",
+		"underscore": "~1.8.3"
 	},
 	"devDependencies": {
 		"karma": "~0.12.32",
