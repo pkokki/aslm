@@ -1,5 +1,6 @@
 var _ = require('underscore')._;
 var Account = require('./models/account');
+var Binary = require('./models/binary');
 
 var errors = {
     create: function(err) {
@@ -22,6 +23,8 @@ var errors = {
     SOLUTION_ALREADY_IN_STATE: { status: 409, code: 1107, description: 'solution is already in state %s' },
     NO_BINARIES_SUPPLIED: { status: 409, code: 1108, description: 'no files found in request body' },
     NO_PATH_FOR_BINARY_SUPPLIED: { status: 409, code: 1109, description: 'a file should have a valid path property' },
+    BINARIES_ALREADY_CREATED: { status: 409, code: 1110, description: 'binaries are already created' },
+    BINARY_PATH_NOT_FOUND: { status: 409, code: 1111, description: 'binary path not found' },
 };
 
 
@@ -45,27 +48,9 @@ function initCreateAccount(err) {
     if (err)
         console.log('failed to remove existing account: ' + err);
     else {
-        var s001 = getSolutionTemplate('s001', new Date(2015, 6, 10, 0, 0, 0, 0));
-        var s002 = getSolutionTemplate('s002', new Date(2015, 6, 11, 0, 0, 0, 0), 'STARTED');
-        var s003 = getSolutionTemplate('s003');
-        var s004 = getSolutionTemplate('s004');
-        var running1 = getSolutionTemplate('running1', null, 'STARTED');
-        var running2 = getSolutionTemplate('running2', null, 'STARTED');
-        var stopped1 = getSolutionTemplate('stopped1');
-        var stopped2 = getSolutionTemplate('stopped2');
-        var sbin = getSolutionTemplate('sbin');
-        sbin.binaries = {
-            totalSize: 1234,
-            status: 'DEPLOYED',
-            files: [
-                { properties: { path: 'example1.zip', pathGuid: 'ZXhhbXBsZTIud2Fy', size: 1230, status: 'AVAILABLE', hash: 'F6E792574CB4F94E17D677DCC27809C0D43B8AC9' } },
-                { properties: { path: 'example2.zip', pathGuid: 'ZXhhbXBsZTEud2Fy', size: 4, status: 'AVAILABLE', hash: 'E9856D0DD103D59A7CA563D919D983470D81E004' } },
-            ]
-        };
-
         var account = {
             name: '123',
-            solutions: [ /*s001, s002, */s003, s004, running1, running2, stopped1, stopped2, sbin]
+            solutions: [ /*s001, s002, s003, s004, running1, running2, stopped1, stopped2,sbin */]
         };
         Account.create(account, function(err) {
             if (err)
@@ -77,8 +62,7 @@ function initCreateAccount(err) {
 }
 
 function init() {
-    console.log('initializing test data...')
-
+    console.log('initializing test account...')
     Account.findOne({ 'name': '123' }, 'solutions', function(err, account) {
         if (err) {
             console.log('failed to initialize: ' + err)
@@ -235,6 +219,11 @@ module.exports = function(app) {
                     res.status(409).json(errors.SOLUTION_MUST_BE_STOPPED);
                 }
                 else {
+                    var files = account.solutions.id(solution._id).binaries.files;
+                    for (var i = 0; i < files.length; i++) {
+                        var binId = files[i].content;
+                        Binary.findByIdAndRemove(binId, function () {});
+                    }
                     account.solutions.id(solution._id).remove();
                     account.save(function (err) {
                         if (err)
@@ -310,6 +299,44 @@ module.exports = function(app) {
         });
     });
 
+    function setSolutionFiles(res, solution, account, reqBinaries, successStatus) {
+        if (reqBinaries && _.isArray(reqBinaries.files) && reqBinaries.files.length > 0)
+        {
+            solution.binaries.files = [];
+            for (var i = 0; i < reqBinaries.files.length; i++) {
+                var reqFile = reqBinaries.files[i];
+                if (typeof reqFile.path == 'string') {
+                    var file = _.find(solution.binaries.files, function(el) { return el.path == reqFile.path });
+                    if (file == null) {
+                        file = {
+                            path: reqFile.path,
+                            status: 'UNAVAILABLE',
+                        }
+                        solution.binaries.files.push(file);
+                    }
+                    file.pathGuid = account.uuid();
+                }
+                else {
+                    res.status(409).json(errors.NO_PATH_FOR_BINARY_SUPPLIED);
+                    return;
+                }
+            }
+
+            account.save(function(err, account) {
+                if (err)
+                    res.status(500).json(errors.create(err));
+                else {
+                    var updated = _.find(account.solutions, function(s) { return s.name == solution.name; });
+                    var result = updated.binaries;
+                    res.status(successStatus).json(result);
+                }
+            });
+        }
+        else {
+            res.status(400).json(errors.NO_BINARIES_SUPPLIED);
+        }
+    }
+
     app.post('/api/accounts/:accountName/solutions/:solutionName/binaries', function(req, res) {
         var accountName = req.params.accountName;
         var solutionName = req.params.solutionName;
@@ -319,48 +346,67 @@ module.exports = function(app) {
                 res.status(err.status).json(err);
             }
             else {
-                if (reqBinaries && _.isArray(reqBinaries.files) && reqBinaries.files.length > 0)
-                {
-                    if (!solution.binaries) {
-                        solution.binaries = {
-                            totalSize: 0,
-                            status: 'UNAVAILABLE',
-                            files: [],
-                        };
-                    }
-                    for (var i = 0; i < reqBinaries.files.length; i++) {
-                        var reqFile = reqBinaries.files[i];
-                        if (typeof reqFile.path == 'string') {
-                            var file = _.find(solution.binaries.files, function(el) { return el.path == reqFile.path });
-                            if (file == null) {
-                                file = {
-                                    properties: {
-                                        path: reqFile.path,
-                                        status: 'UNAVAILABLE',
-                                    }
-                                }
-                                binaries.files.push(file);
-                            }
-                            file.pathGuid = account.uuid();
-                        }
-                        else {
-                            res.status(409).json(errors.NO_PATH_FOR_BINARY_SUPPLIED);
-                            return;
-                        }
-                    }
+                if (solution.binaries.files.length == 0) {
+                    setSolutionFiles(res, solution, account, reqBinaries, 201);
+                }
+                else {
+                    res.status(409).json(errors.BINARIES_ALREADY_CREATED);
+                }
 
-                    account.save(function(err, account) {
-                        if (err)
+            }
+        });
+    });
+
+    app.put('/api/accounts/:accountName/solutions/:solutionName/binaries', function(req, res) {
+        var accountName = req.params.accountName;
+        var solutionName = req.params.solutionName;
+        var reqBinaries = req.body;
+        findSolution(accountName, solutionName, function(err, solution, account) {
+            if (err) {
+                res.status(err.status).json(err);
+            }
+            else {
+                setSolutionFiles(res, solution, account, reqBinaries, 200);
+            }
+        });
+    });
+
+    app.put('/api/accounts/:accountName/solutions/:solutionName/binaries/:pathGuid', function(req, res) {
+        var accountName = req.params.accountName;
+        var solutionName = req.params.solutionName;
+        var pathGuid = req.params.pathGuid;
+        var content = req.body.toString();
+        findSolution(accountName, solutionName, function(err, solution, account) {
+            if (err) {
+                res.status(err.status).json(err);
+            }
+            else {
+                var file = _.find(solution.binaries.files, function(el) { return el.pathGuid == pathGuid; });
+                if (file) {
+                    file.pathGuid = null;
+                    file.status = 'AVAILABLE';
+                    var buffer = new Buffer(content);
+                    Binary.create({ content: buffer }, function(err, binary) {
+                        if (err) {
                             res.status(500).json(errors.create(err));
+                        }
                         else {
-                            var updated = _.find(account.solutions, function(s) { return s.name == solutionName; });
-                            var result = updated.binaries;
-                            res.json(result);
+                            file.content = binary._id;
+                            account.save(function(err, account) {
+                                if (err) {
+                                    res.status(500).json(errors.create(err));
+                                }
+                                else {
+                                    var updatedSolution = _.find(account.solutions, function(o) { return o.name == solution.name; });
+                                    var updatedFile = _.find(updatedSolution.binaries.files, function (o) { return o.path == file.path; });
+                                    res.status(200).json(updatedFile);
+                                }
+                            });
                         }
                     });
                 }
                 else {
-                    res.status(409).json(errors.NO_BINARIES_SUPPLIED);
+                    res.status(404).json(errors.BINARY_PATH_NOT_FOUND);
                 }
             }
         });

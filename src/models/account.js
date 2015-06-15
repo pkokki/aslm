@@ -8,20 +8,18 @@ function uuid() {
 }
 
 var binarySchema = {
-    properties: {
+    path:  String,
+    pathGuid: { type: String, default: uuid() },
+    size: { type: Number, default: 0 },
+    createdAt: { type: Date, required: true, default: new Date() },
+    updatedAt: { type: Date, required: true, default: new Date() },
+    status: { type: String, default: 'UNAVAILABLE', enum: ['UNAVAILABLE', 'UPLOADING', 'AVAILABLE'] },
+    hash: { type: String, default: null },
+    entries: [{
         path:  String,
-        pathGuid: { type: String, default: uuid() },
-        size: { type: Number, default: 0 },
-        createdAt: { type: Date, required: true, default: new Date() },
-        updatedAt: { type: Date, required: true, default: new Date() },
-        status: { type: String, default: 'UNAVAILABLE', enum: ['UNAVAILABLE', 'UPLOADING', 'AVAILABLE'] },
-        hash: { type: String, default: null },
-        entries: [{
-            path:  String,
-            size: Number,
-            hash: String,
-        }],
-    },
+        size: Number,
+        hash: String,
+    }],
     content: { type: mongoose.Schema.Types.ObjectId, ref: 'Binary' }
 }
 
