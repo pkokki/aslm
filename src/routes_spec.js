@@ -74,10 +74,40 @@ frisby.create('should succeed to POST a solution')
         frisby.create('tidyup: should succeed to POST a solution').delete(existingAccountUrl + '/solutions/new001').expectStatus(204).toss();
     })
     .toss();
+
+function deleteSolution(name, next) {
+    return function(json) {
+        if (!name) {
+            name = json.name;
+        }
+        else if (typeof name == 'function') {
+            next = name;
+            name = json.name;
+        }
+        frisby.create('deleteSolution ' + name).delete(existingAccountUrl + '/solutions/' + name).expectStatus(204).toss();
+        if (next) {
+            next(json);
+        }
+    }
+}
+
+frisby.create('should adhere to the naming conventions for solution names: the name must contain no more than 30 characters')
+    .post(existingAccountUrl + '/solutions', { name: 's123456789012345678901234567890', url: '/xxxxx' }).expectStatus(400).afterJSON(assertError(1112)).toss();
+frisby.create('should adhere to the naming conventions for solution names: the name must contain no more than 30 characters')
+    .post(existingAccountUrl + '/solutions', { name: 's12345678901234567890123456789', url: '/xxxxx' }).expectStatus(201).afterJSON(deleteSolution()).toss();
+frisby.create('should adhere to the naming conventions for solution names: the name must contain only lowercase alphanumeric characters')
+    .post(existingAccountUrl + '/solutions', { name: 'thename#', url: '/xxxxx' }).expectStatus(400).afterJSON(assertError(1112)).toss();
+frisby.create('should adhere to the naming conventions for solution names: the name must contain only lowercase alphanumeric characters')
+    .post(existingAccountUrl + '/solutions', { name: 'THENAME', url: '/xxxxx' }).expectStatus(400).afterJSON(assertError(1112)).toss();
+frisby.create('should adhere to the naming conventions for solution names: the name must contain only lowercase alphanumeric characters')
+    .post(existingAccountUrl + '/solutions', { name: 'aname!', url: '/xxxxx' }).expectStatus(400).afterJSON(assertError(1112)).toss();
+frisby.create('should adhere to the naming conventions for solution names: the name must start with a letter')
+    .post(existingAccountUrl + '/solutions', { name: '1name', url: '/xxxxx' }).expectStatus(400).afterJSON(assertError(1112)).toss();
+
 frisby.create('should succeed to POST a solution with binaries')
     .post(existingAccountUrl + '/solutions', {
-        name: 'newWithBinaries',
-        url: '/newWithBinaries',
+        name: 'newwithbinaries',
+        url: '/newwithbinaries',
         binaries: {
             totalSize: 1234,
             files: [ { path: 'p1.txt' }, { path: 'p2.txt' } ]
@@ -97,23 +127,23 @@ frisby.create('should succeed to POST a solution with binaries')
         expect(json.binaries.files[1].path).toEqual('p2.txt');
 
         frisby.create('tidy up')
-            .delete(existingAccountUrl + '/solutions/newWithBinaries')
+            .delete(existingAccountUrl + '/solutions/newwithbinaries')
             .expectStatus(204)
             .toss();
     })
     .toss();
 frisby.create('pre')
-    .post(existingAccountUrl + '/solutions', { name: 'runningSolution3', url: '/runningSolution3' })
+    .post(existingAccountUrl + '/solutions', { name: 'runningsolution3', url: '/runningsolution3' })
     .afterJSON(function() {
         frisby.create('should fail with 409 to POST a solution if the solution is already exists')
             .post(existingAccountUrl + '/solutions', {
-                name: 'runningSolution3',
+                name: 'runningsolution3',
                 url: '/xxxxx'
             })
             .expectStatus(409)
             .afterJSON(function() {
                 assertError(1102);
-                frisby.create('tidyup').delete(existingAccountUrl + '/solutions/runningSolution3').expectStatus(204).toss();
+                frisby.create('tidyup').delete(existingAccountUrl + '/solutions/runningsolution3').expectStatus(204).toss();
             })
             .toss();
     })
@@ -132,7 +162,7 @@ frisby.create('should fail with 400 to POST a solution if the request body canno
     .toss();
 frisby.create('should fail with 400 to POST a solution if the resource URL is invalid')
     .post(existingAccountUrl + '/solutions', {
-        name: 'validSolutionName',
+        name: 'validsolutionname',
         url: '/xxxxx xxxxxx'
     })
     .expectStatus(400)
@@ -203,17 +233,17 @@ frisby.create('should fail with 404 to PUT a not existing solution in an existin
     .expectStatus(404)
     .afterJSON(assertError(1104))
     .toss();
-frisby.create('should fail with 409 to PUT a solution, if application is running').post(existingAccountUrl + '/solutions', { name: 'runningSolution', url: '/runningSolution' }).afterJSON(function() {
-    frisby.create('pre').put(existingAccountUrl + '/solutions/runningSolution/state', { state: 'STARTED' }).afterJSON(function() {
+frisby.create('should fail with 409 to PUT a solution, if application is running').post(existingAccountUrl + '/solutions', { name: 'runningsolution', url: '/runningsolution' }).afterJSON(function() {
+    frisby.create('pre').put(existingAccountUrl + '/solutions/runningsolution/state', { state: 'STARTED' }).afterJSON(function() {
         frisby.create('should fail with 409 to PUT a solution, if application is running')
-            .put(existingAccountUrl + '/solutions/runningSolution', { name: 'updated' })
+            .put(existingAccountUrl + '/solutions/runningsolution', { name: 'updated' })
             .expectStatus(409)
             .afterJSON(function(json) {
                 assertError(1105)(json);
-                frisby.create('tidyup').put(existingAccountUrl + '/solutions/runningSolution/state', { state: 'STOPPED'})
+                frisby.create('tidyup').put(existingAccountUrl + '/solutions/runningsolution/state', { state: 'STOPPED'})
                     .expectStatus(200)
                     .afterJSON(function() {
-                        frisby.create('tidyup').delete(existingAccountUrl + '/solutions/runningSolution').toss();
+                        frisby.create('tidyup').delete(existingAccountUrl + '/solutions/runningsolution').toss();
                     }).toss();
             })
             .toss();
@@ -237,16 +267,16 @@ frisby.create('should succeed to DELETE an existing solution')
     .toss();
 
 frisby.create('pre: should fail with 409 to DELETE an existing solution, if application is running')
-    .post(existingAccountUrl + '/solutions', { name: 'runningSolution2', url: '/runningSolution2' })
+    .post(existingAccountUrl + '/solutions', { name: 'runningsolution2', url: '/runningsolution2' })
     .afterJSON(function() {
-        frisby.create('pre').put(existingAccountUrl + '/solutions/runningSolution2/state', { state: 'STARTED' }).afterJSON(function(json) {
+        frisby.create('pre').put(existingAccountUrl + '/solutions/runningsolution2/state', { state: 'STARTED' }).afterJSON(function(json) {
             frisby.create('should fail with 409 to DELETE an existing solution, if application is running')
-                .delete(existingAccountUrl + '/solutions/runningSolution2')
+                .delete(existingAccountUrl + '/solutions/runningsolution2')
                 .expectStatus(409)
                 .afterJSON(function(json) {
                     assertError(1105)(json);
-                    frisby.create('tidyup').put(existingAccountUrl + '/solutions/runningSolution2/state', { state: 'STOPPED'}).afterJSON(function() {
-                        frisby.create('tidyup').delete(existingAccountUrl + '/solutions/runningSolution2').toss();
+                    frisby.create('tidyup').put(existingAccountUrl + '/solutions/runningsolution2/state', { state: 'STOPPED'}).afterJSON(function() {
+                        frisby.create('tidyup').delete(existingAccountUrl + '/solutions/runningsolution2').toss();
                     }).toss();
 
                 })

@@ -25,6 +25,7 @@ var errors = {
     NO_PATH_FOR_BINARY_SUPPLIED: { status: 409, code: 1109, description: 'a file should have a valid path property' },
     BINARIES_ALREADY_CREATED: { status: 409, code: 1110, description: 'binaries are already created' },
     BINARY_PATH_NOT_FOUND: { status: 409, code: 1111, description: 'binary path not found' },
+    INVALID_SOLUTION_NAME: { status: 400, code: 1112, description: 'solution name is invalid' },
 };
 
 
@@ -81,6 +82,17 @@ function init() {
 
 function isValidUrl(url) {
     if (url.indexOf(' ') > 0) return false;
+    return true;
+}
+
+function isValidName(name) {
+    /* The name must contain no more than 30 characters. */
+    if (!name || name.length <= 0 || name.length > 30) { return false; }
+    /* The name must contain only lowercase alphanumeric characters. */
+    var re = new RegExp('^[a-z][a-z0-9]+$');
+    if (!(/^[a-z][a-z0-9]+$/.test(name))) { return false; }
+    /* The name must start with a letter. */
+    if (name[0] >= '0' && name[0] <= '9') { return false; }
     return true;
 }
 
@@ -141,6 +153,9 @@ module.exports = function(app) {
             else {
                 if (typeof solution != 'object' || typeof solution.name != 'string') {
                     res.status(400).json(errors.INVALID_SOLUTION);
+                }
+                else if (!isValidName(solution.name)) {
+                    res.status(400).json(errors.INVALID_SOLUTION_NAME);
                 }
                 else if (typeof solution.url != 'string' || !isValidUrl(solution.url)) {
                     res.status(400).json(errors.INVALID_SOLUTION_URL);
